@@ -1,7 +1,9 @@
 import cors from "cors";
 import express from "express";
+import { existsSync } from "fs";
 import morgan from "morgan";
 import { fileURLToPath } from "url";
+import { connectDb } from "./config/db.js";
 import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorMiddleware.js";
 import { authRoutes } from "./routes/authRoutes.js";
@@ -12,6 +14,16 @@ import { userRoutes } from "./routes/userRoutes.js";
 import { socialRoutes } from "./routes/socialRoutes.js";
 
 export const app = express();
+
+// Singleton DB connection promise
+let _dbConnection = null;
+export async function ensureDb() {
+  if (!_dbConnection) {
+    _dbConnection = connectDb(env.mongodbUri);
+  }
+  await _dbConnection;
+}
+
 const uploadRoot = fileURLToPath(new URL("../uploads/", import.meta.url));
 
 app.use(
@@ -38,7 +50,21 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
-app.use("/uploads", express.static(uploadRoot));
+
+// Guarantee DB is connected before every request (Vercel serverless safe)
+app.use(async (req, res, next) => {
+  try {
+    await ensureDb();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Serve uploads only when the directory actually exists (skipped on Vercel)
+if (existsSync(uploadRoot)) {
+  app.use("/uploads", express.static(uploadRoot));
+}
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });

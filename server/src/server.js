@@ -1,39 +1,19 @@
-import { app } from "./app.js";
-import { connectDb } from "./config/db.js";
+import { app, ensureDb } from "./app.js";
 import { env } from "./config/env.js";
 
-let dbConnection = null;
-
-async function initDb() {
-  if (!dbConnection) {
-    dbConnection = connectDb(env.mongodbUri);
-  }
-  await dbConnection;
-}
-
-// For local execution
+// For local execution only
 if (!process.env.VERCEL) {
-  initDb()
+  ensureDb()
     .then(() => {
       app.listen(env.port, () => {
         console.log(`Wave API listening on port ${env.port}`);
       });
     })
     .catch((error) => {
-      console.error("Local database connection failed:", error);
+      console.error("Database connection failed:", error);
       process.exit(1);
     });
 }
 
-// Middleware to guarantee MongoDB connectivity on Vercel Serverless Function invocations
-app.use(async (req, res, next) => {
-  try {
-    await initDb();
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
+// Vercel expects the default export to be the Express app
 export default app;
-
