@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.local
+npm-debug.log*
+server/uploads/songs/*
+server/uploads/covers/*
+server/uploads/avatars/*
+!server/uploads/songs/.gitkeep
+!server/uploads/covers/.gitkeep
+!server/uploads/avatars/.gitkeep
