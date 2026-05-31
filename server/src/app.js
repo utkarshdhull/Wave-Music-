@@ -19,12 +19,17 @@ app.use(
     origin(origin, callback) {
       // Allow requests with no origin (e.g. curl, Postman, same-origin)
       if (!origin) return callback(null, true);
-      // Build allowed set: the configured origin + its localhost/127.0.0.1 twin
+      // Support comma-separated list of allowed origins
       const configured = env.clientOrigin;
-      const twin = configured.includes("localhost")
-        ? configured.replace("localhost", "127.0.0.1")
-        : configured.replace("127.0.0.1", "localhost");
-      const allowed = new Set([configured, twin]);
+      const allowed = new Set(
+        configured.split(",").flatMap((o) => {
+          const trimmed = o.trim();
+          const twin = trimmed.includes("localhost")
+            ? trimmed.replace("localhost", "127.0.0.1")
+            : trimmed.replace("127.0.0.1", "localhost");
+          return [trimmed, twin];
+        })
+      );
       if (allowed.has(origin)) return callback(null, true);
       callback(new Error(`CORS: origin ${origin} not allowed`));
     },
