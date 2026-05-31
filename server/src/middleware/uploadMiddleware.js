@@ -1,8 +1,10 @@
 import crypto from "crypto";
-import { mkdirSync } from "fs";
+import { existsSync, mkdirSync } from "fs";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import { ApiError } from "../utils/ApiError.js";
+
+const IS_VERCEL = !!process.env.VERCEL;
 
 const uploadDirs = {
   audio: fileURLToPath(new URL("../../uploads/songs/", import.meta.url)),
@@ -10,30 +12,36 @@ const uploadDirs = {
   avatar: fileURLToPath(new URL("../../uploads/avatars/", import.meta.url))
 };
 
-Object.values(uploadDirs).forEach((dir) => mkdirSync(dir, { recursive: true }));
+// Only create directories on local dev (Vercel has a read-only filesystem)
+if (!IS_VERCEL) {
+  Object.values(uploadDirs).forEach((dir) => {
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  });
+}
 
-const storage = multer.diskStorage({
-  destination(req, file, callback) {
-    if (file.fieldname === "audio") {
-      callback(null, uploadDirs.audio);
-      return;
-    }
-
-    if (file.fieldname === "cover") {
-      callback(null, uploadDirs.cover);
-      return;
-    }
-
-    callback(null, uploadDirs.avatar);
-  },
-  filename(_req, file, callback) {
-    const extension = file.originalname.includes(".")
-      ? file.originalname.slice(file.originalname.lastIndexOf(".")).toLowerCase()
-      : "";
-
-    callback(null, `${crypto.randomUUID()}${extension}`);
-  }
-});
+// On Vercel: use memory storage (uploads won't persist — use Cloudinary/S3 for production)
+// On local: use disk storage with proper directories
+const storage = IS_VERCEL
+  ? multer.memoryStorage()
+  : multer.diskStorage({
+      destination(req, file, callback) {
+        if (file.fieldname === "audio") {
+          callback(null, uploadDirs.audio);
+          return;
+        }
+        if (file.fieldname === "cover") {
+          callback(null, uploadDirs.cover);
+          return;
+        }
+        callback(null, uploadDirs.avatar);
+      },
+      filename(_req, file, callback) {
+        const extension = file.originalname.includes(".")
+          ? file.originalname.slice(file.originalname.lastIndexOf(".")).toLowerCase()
+          : "";
+        callback(null, `${crypto.randomUUID()}${extension}`);
+      }
+    });
 
 function fileFilter(_req, file, callback) {
   const isAudio = file.fieldname === "audio" && file.mimetype.startsWith("audio/");
@@ -61,4 +69,3 @@ export const songUpload = upload.fields([
 ]);
 
 export const avatarUpload = upload.single("avatar");
-
